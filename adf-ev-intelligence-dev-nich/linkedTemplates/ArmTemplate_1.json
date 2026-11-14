@@ -1,0 +1,2835 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"type": "string",
+			"metadata": "Data Factory name",
+			"defaultValue": "adf-ev-intelligence-dev-nich"
+		}
+	},
+	"variables": {
+		"factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+	},
+	"resources": [
+		{
+			"name": "[concat(parameters('factoryName'), '/pl_bronze_incremental_load')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "act_read_ctl",
+						"type": "DatabricksNotebook",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"notebookPath": "/Users/udaipurboy26@gmx.de/nb_read_control_table",
+							"baseParameters": {
+								"source_name": {
+									"value": "@pipeline().parameters.p_source_name",
+									"type": "Expression"
+								}
+							}
+						},
+						"linkedServiceName": {
+							"referenceName": "ls_databricks",
+							"type": "LinkedServiceReference"
+						}
+					},
+					{
+						"name": "act_set_endpoint",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_read_ctl",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_endpoint",
+							"value": {
+								"value": "@activity('act_read_ctl').output.runOutput.endpoint",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_sink_path",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_read_ctl",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_sink_base_path",
+							"value": {
+								"value": "@activity('act_read_ctl').output.runOutput.sink_base_path",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_file_prefix",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_read_ctl",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_file_prefix",
+							"value": {
+								"value": "@activity('act_read_ctl').output.runOutput.file_prefix",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_page_size",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_read_ctl",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_page_size",
+							"value": {
+								"value": "@string(activity('act_read_ctl').output.runOutput.page_size)",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_watermark",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_read_ctl",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_last_watermark",
+							"value": {
+								"value": "@if(\n  and(\n    not(empty(pipeline().parameters.p_load_type_override)),\n    equals(pipeline().parameters.p_load_type_override, 'full')\n  ),\n  '1900-01-01T00:00:00Z',\n  activity('act_read_ctl').output.runOutput.last_watermark\n)",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_ingestion_date",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_read_ctl",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_ingestion_date",
+							"value": {
+								"value": "@formatDateTime(utcnow(), 'yyyy-MM-dd')",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_run_ts",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_read_ctl",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_run_ts",
+							"value": {
+								"value": "@utcNow()",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_get_username",
+						"type": "WebActivity",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"method": "GET",
+							"headers": {},
+							"url": "https://kv-ev-intelligence-dev94.vault.azure.net/secrets/voltgrid-username/?api-version=7.0",
+							"authentication": {
+								"type": "MSI",
+								"resource": "https://vault.azure.net"
+							}
+						}
+					},
+					{
+						"name": "act_get_password",
+						"type": "WebActivity",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"method": "GET",
+							"headers": {},
+							"url": "https://kv-ev-intelligence-dev94.vault.azure.net/secrets/voltgrid-password/?api-version=7.0",
+							"authentication": {
+								"type": "MSI",
+								"resource": "https://vault.azure.net"
+							}
+						}
+					},
+					{
+						"name": "act_api_login",
+						"type": "WebActivity",
+						"dependsOn": [
+							{
+								"activity": "act_get_username",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "act_get_password",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"method": "POST",
+							"headers": {
+								"Content-Type": "application/json"
+							},
+							"url": "https://ev-project-navy-mu.vercel.app/api/auth/login/",
+							"body": {
+								"value": "@concat(\n    '{\"username\":\"', \n    activity('act_get_username').output.value, \n    '\",\"password\":\"', \n    activity('act_get_password').output.value, \n    '\"}'\n    )",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_token",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_api_login",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_token",
+							"value": {
+								"value": "@activity('act_api_login').output.token",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_fetch_page1_meta",
+						"type": "WebActivity",
+						"dependsOn": [
+							{
+								"activity": "act_set_token",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "act_set_endpoint",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "act_set_page_size",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "act_set_watermark",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "act_set_sink_path",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "act_set_file_prefix",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "act_set_ingestion_date",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"method": "GET",
+							"headers": {
+								"authorization": {
+									"value": "@concat('Token ', variables('v_token'))",
+									"type": "Expression"
+								}
+							},
+							"url": {
+								"value": "@concat(\n  'https://ev-project-navy-mu.vercel.app',\n  variables('v_endpoint'),\n  '?page=1&page_size=',\n  variables('v_page_size'),\n  '&updated_after=',\n  encodeUriComponent(variables('v_last_watermark'))\n)",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_total_pages",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_fetch_page1_meta",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_total_pages",
+							"value": {
+								"value": "@int(activity('act_fetch_page1_meta').output.pagination.total_pages)",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_current_page_1",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_set_total_pages",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_current_page",
+							"value": {
+								"value": "@int(1)",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "until_current_page_less_than_total_pages",
+						"type": "Until",
+						"dependsOn": [
+							{
+								"activity": "act_set_current_page_1",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"expression": {
+								"value": "@greater(variables('v_current_page'), variables('v_total_pages'))",
+								"type": "Expression"
+							},
+							"activities": [
+								{
+									"name": "act_copy_page",
+									"type": "Copy",
+									"dependsOn": [
+										{
+											"activity": "act_set_loop_token",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"source": {
+											"type": "RestSource",
+											"httpRequestTimeout": "00:01:40",
+											"requestInterval": "00.00:00:00.010",
+											"requestMethod": "GET",
+											"additionalHeaders": {
+												"Authorization": {
+													"value": "@concat('Token ', variables('v_token'))",
+													"type": "Expression"
+												}
+											},
+											"paginationRules": {
+												"supportRFC5988": "true"
+											}
+										},
+										"sink": {
+											"type": "JsonSink",
+											"storeSettings": {
+												"type": "AzureBlobFSWriteSettings"
+											},
+											"formatSettings": {
+												"type": "JsonWriteSettings"
+											}
+										},
+										"enableStaging": false
+									},
+									"inputs": [
+										{
+											"referenceName": "ds_voltgrid_payments_src",
+											"type": "DatasetReference",
+											"parameters": {
+												"p_page": {
+													"value": "@string(variables('v_current_page'))",
+													"type": "Expression"
+												},
+												"p_page_size": {
+													"value": "@variables('v_page_size')",
+													"type": "Expression"
+												},
+												"p_endpoint": {
+													"value": "@variables('v_endpoint')",
+													"type": "Expression"
+												},
+												"p_updated_after": {
+													"value": "@variables('v_last_watermark')",
+													"type": "Expression"
+												},
+												"p_token": {
+													"value": "@variables('v_token')",
+													"type": "Expression"
+												}
+											}
+										}
+									],
+									"outputs": [
+										{
+											"referenceName": "ds_bronze_payments_sink",
+											"type": "DatasetReference",
+											"parameters": {
+												"p_folder": {
+													"value": "@concat(variables('v_sink_base_path'), '/ingestion_date=', variables('v_ingestion_date'))",
+													"type": "Expression"
+												},
+												"p_file": {
+													"value": "@concat(variables('v_file_prefix'), '_page_', string(variables('v_current_page')), '.json')",
+													"type": "Expression"
+												}
+											}
+										}
+									]
+								},
+								{
+									"name": "act_increment_page",
+									"type": "SetVariable",
+									"dependsOn": [
+										{
+											"activity": "act_copy_page",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "v_next_page",
+										"value": {
+											"value": "@add(variables('v_current_page'),1)",
+											"type": "Expression"
+										}
+									}
+								},
+								{
+									"name": "act_set_current_page",
+									"type": "SetVariable",
+									"dependsOn": [
+										{
+											"activity": "act_increment_page",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "v_current_page",
+										"value": {
+											"value": "@variables('v_next_page')",
+											"type": "Expression"
+										}
+									}
+								},
+								{
+									"name": "act_relogin",
+									"type": "WebActivity",
+									"dependsOn": [],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"method": "POST",
+										"headers": {
+											"Content-Type": "application/json"
+										},
+										"url": " https://ev-project-navy-mu.vercel.app/api/auth/login/",
+										"body": {
+											"value": "@concat(\n    '{\"username\": \"',\n    string(activity('act_get_username').output.value),\n    '\", \"password\": \"',\n    string(activity('act_get_password').output.value),\n    '\"}'\n)",
+											"type": "Expression"
+										}
+									}
+								},
+								{
+									"name": "act_set_loop_token",
+									"type": "SetVariable",
+									"dependsOn": [
+										{
+											"activity": "act_relogin",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "v_token",
+										"value": {
+											"value": "@activity('act_api_login').output.token",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"timeout": "0.12:00:00"
+						}
+					},
+					{
+						"name": "act_update_watermark",
+						"type": "DatabricksNotebook",
+						"dependsOn": [
+							{
+								"activity": "until_current_page_less_than_total_pages",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"notebookPath": "/Users/udaipurboy26@gmx.de/nb_update_watermark",
+							"baseParameters": {
+								"source_name": {
+									"value": "@pipeline().parameters.p_source_name",
+									"type": "Expression"
+								},
+								"new_watermark": {
+									"value": "@variables('v_run_ts')",
+									"type": "Expression"
+								}
+							}
+						},
+						"linkedServiceName": {
+							"referenceName": "ls_databricks",
+							"type": "LinkedServiceReference"
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"parameters": {
+					"p_source_name": {
+						"type": "string",
+						"defaultValue": "payments"
+					},
+					"p_load_type_override": {
+						"type": "string"
+					}
+				},
+				"variables": {
+					"v_token": {
+						"type": "String"
+					},
+					"v_endpoint": {
+						"type": "String"
+					},
+					"v_sink_base_path": {
+						"type": "String"
+					},
+					"v_file_prefix": {
+						"type": "String"
+					},
+					"v_page_size": {
+						"type": "String"
+					},
+					"v_last_watermark": {
+						"type": "String"
+					},
+					"v_ingestion_date": {
+						"type": "String"
+					},
+					"v_current_page": {
+						"type": "Integer"
+					},
+					"v_next_page": {
+						"type": "Integer"
+					},
+					"v_total_pages": {
+						"type": "Integer"
+					},
+					"v_run_ts": {
+						"type": "String"
+					}
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-11-09T14:55:49Z"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/pl_bronze_incremental_load_practice')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "act_get_username",
+						"type": "WebActivity",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"method": "GET",
+							"headers": {
+								"Content-Type": "application/json"
+							},
+							"url": "https://kv-ev-intelligence-dev94.vault.azure.net/secrets/voltgrid-username?api-version=7.0",
+							"authentication": {
+								"type": "MSI",
+								"resource": "https://vault.azure.net"
+							}
+						}
+					},
+					{
+						"name": "act_get_password",
+						"type": "WebActivity",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"method": "GET",
+							"headers": {
+								"Content-Type": "application/json"
+							},
+							"url": "https://kv-ev-intelligence-dev94.vault.azure.net/secrets/voltgrid-password?api-version=7.0",
+							"authentication": {
+								"type": "MSI",
+								"resource": "https://vault.azure.net"
+							}
+						}
+					},
+					{
+						"name": "act_get_token",
+						"type": "WebActivity",
+						"dependsOn": [
+							{
+								"activity": "act_get_username",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "act_get_password",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"method": "POST",
+							"headers": {
+								"Content-Type": "application/json"
+							},
+							"url": "https://ev-project-navy-mu.vercel.app/api/auth/login/",
+							"body": {
+								"value": "@concat(\n    '{\"username\": \"',\n    string(activity('act_get_username').output.value),\n    '\", \"password\": \"',\n    string(activity('act_get_password').output.value),\n    '\"}'\n)",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_token",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_get_token",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_token",
+							"value": {
+								"value": "@activity('act_get_token').output.token",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_fetch_page1_meta",
+						"type": "WebActivity",
+						"dependsOn": [
+							{
+								"activity": "act_set_token",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "act_set_last_watermark",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "act_set_page_size",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "act_set_endpoint",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"method": "GET",
+							"headers": {
+								"Authorization": {
+									"value": "@concat('Token ', variables('v_token'))",
+									"type": "Expression"
+								}
+							},
+							"url": {
+								"value": "@concat(\n    'https://ev-project-navy-mu.vercel.app',\n    variables('v_endpoint'),\n    '?page=1&page_size=',\n    variables('v_page_size'),\n    '&updated_after=',\n    encodeUriComponent(variables('v_last_watermark'))\n)",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_db_read_control_table",
+						"type": "DatabricksNotebook",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"notebookPath": "/Users/udaipurboy26@gmx.de/nb_read_control_table",
+							"baseParameters": {
+								"source_name": {
+									"value": "@pipeline().parameters.p_source_name",
+									"type": "Expression"
+								}
+							}
+						},
+						"linkedServiceName": {
+							"referenceName": "ls_databricks",
+							"type": "LinkedServiceReference"
+						}
+					},
+					{
+						"name": "act_set_last_watermark",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_db_read_control_table",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_last_watermark",
+							"value": {
+								"value": "@activity('act_db_read_control_table').output.runOutput.last_watermark",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_page_size",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_db_read_control_table",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_page_size",
+							"value": {
+								"value": "@activity('act_db_read_control_table').output.runOutput.page_size",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_total_pages",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_fetch_page1_meta",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_total_pages",
+							"value": {
+								"value": "@activity('act_fetch_page1_meta').output.pagination.total_pages",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_endpoint",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_db_read_control_table",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_endpoint",
+							"value": {
+								"value": "@activity('act_db_read_control_table').output.runOutput.endpoint",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "copy_page1",
+						"type": "Copy",
+						"dependsOn": [
+							{
+								"activity": "act_set_total_pages",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "RestSource",
+								"httpRequestTimeout": "00:01:40",
+								"requestInterval": "00.00:00:00.010",
+								"requestMethod": "GET",
+								"additionalHeaders": {
+									"Authorization": {
+										"value": "@concat('Token ', variables('v_token'))",
+										"type": "Expression"
+									}
+								},
+								"paginationRules": {
+									"supportRFC5988": "true"
+								}
+							},
+							"sink": {
+								"type": "JsonSink",
+								"storeSettings": {
+									"type": "AzureBlobFSWriteSettings"
+								},
+								"formatSettings": {
+									"type": "JsonWriteSettings"
+								}
+							},
+							"enableStaging": false
+						},
+						"inputs": [
+							{
+								"referenceName": "ds_voltgrid_payments_src",
+								"type": "DatasetReference",
+								"parameters": {
+									"p_page": "1",
+									"p_page_size": {
+										"value": "@variables('v_page_size')",
+										"type": "Expression"
+									},
+									"p_endpoint": {
+										"value": "@variables('v_endpoint')",
+										"type": "Expression"
+									},
+									"p_updated_after": {
+										"value": "@variables('v_last_watermark')",
+										"type": "Expression"
+									},
+									"p_token": {
+										"value": "@variables('v_token')",
+										"type": "Expression"
+									}
+								}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "ds_bronze_payments_sink",
+								"type": "DatasetReference",
+								"parameters": {
+									"p_folder": {
+										"value": "@concat(\n    'apitest/payments',\n    '/ingestion_time=',\n    variables('v_ingestion_date')\n)",
+										"type": "Expression"
+									},
+									"p_file": "payments_page_1.json"
+								}
+							}
+						]
+					},
+					{
+						"name": "act_set_sink_base_path",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_db_read_control_table",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_sink_base_path",
+							"value": {
+								"value": "@activity('act_db_read_control_table').output.runOutput.sink_base_path",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_file_prefix",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_db_read_control_table",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_file_prefix",
+							"value": {
+								"value": "@activity('act_db_read_control_table').output.runOutput.file_prefix",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_load_type",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_db_read_control_table",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_load_type",
+							"value": {
+								"value": "@activity('act_db_read_control_table').output.runOutput.load_type",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_ingestion_date",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_db_read_control_table",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_ingestion_date",
+							"value": {
+								"value": "@formatDateTime(utcNow(), 'yyyy-MM-dd')",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_run_ts",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_db_read_control_table",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_run_ts",
+							"value": {
+								"value": "@utcNow()",
+								"type": "Expression"
+							}
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"parameters": {
+					"p_folder_name": {
+						"type": "string",
+						"defaultValue": "api/db"
+					},
+					"p_source_name": {
+						"type": "string",
+						"defaultValue": "payments"
+					}
+				},
+				"variables": {
+					"v_token": {
+						"type": "String"
+					},
+					"v_last_watermark": {
+						"type": "String"
+					},
+					"v_page_size": {
+						"type": "Integer"
+					},
+					"v_total_pages": {
+						"type": "Integer"
+					},
+					"v_endpoint": {
+						"type": "String"
+					},
+					"v_sink_base_path": {
+						"type": "String"
+					},
+					"v_file_prefix": {
+						"type": "String"
+					},
+					"v_load_type": {
+						"type": "String"
+					},
+					"v_ingestion_date": {
+						"type": "String"
+					},
+					"v_run_ts": {
+						"type": "String"
+					}
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-11-09T14:11:33Z"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/pl_bronze_incremental_load_v3')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "act_read_ctl",
+						"type": "DatabricksNotebook",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"notebookPath": "/Users/udaipurboy26@gmx.de/nb_read_control_table",
+							"baseParameters": {
+								"source_name": {
+									"value": "@pipeline().parameters.p_source_name",
+									"type": "Expression"
+								}
+							}
+						},
+						"linkedServiceName": {
+							"referenceName": "ls_databricks",
+							"type": "LinkedServiceReference"
+						}
+					},
+					{
+						"name": "act_set_endpoint",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_read_ctl",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_endpoint",
+							"value": {
+								"value": "@activity('act_read_ctl').output.runOutput.endpoint",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_sink_path",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_read_ctl",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_sink_base_path",
+							"value": {
+								"value": "@activity('act_read_ctl').output.runOutput.sink_base_path",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_file_prefix",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_read_ctl",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_file_prefix",
+							"value": {
+								"value": "@activity('act_read_ctl').output.runOutput.file_prefix",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_page_size",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_read_ctl",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_page_size",
+							"value": {
+								"value": "@string(activity('act_read_ctl').output.runOutput.page_size)",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_watermark",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_read_ctl",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_last_watermark",
+							"value": {
+								"value": "@if(\n  and(\n    not(empty(pipeline().parameters.p_load_type_override)),\n    equals(pipeline().parameters.p_load_type_override, 'full')\n  ),\n  '1900-01-01T00:00:00Z',\n  activity('act_read_ctl').output.runOutput.last_watermark\n)",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_ingestion_date",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_read_ctl",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_ingestion_date",
+							"value": {
+								"value": "@formatDateTime(utcnow(), 'yyyy-MM-dd')",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_run_ts",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_read_ctl",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_run_ts",
+							"value": {
+								"value": "@utcNow()",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_get_username",
+						"type": "WebActivity",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"method": "GET",
+							"headers": {},
+							"url": "https://kv-ev-intelligence-dev94.vault.azure.net/secrets/voltgrid-username/?api-version=7.0",
+							"authentication": {
+								"type": "MSI",
+								"resource": "https://vault.azure.net"
+							}
+						}
+					},
+					{
+						"name": "act_get_password",
+						"type": "WebActivity",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"method": "GET",
+							"headers": {},
+							"url": "https://kv-ev-intelligence-dev94.vault.azure.net/secrets/voltgrid-password/?api-version=7.0",
+							"authentication": {
+								"type": "MSI",
+								"resource": "https://vault.azure.net"
+							}
+						}
+					},
+					{
+						"name": "act_api_login",
+						"type": "WebActivity",
+						"dependsOn": [
+							{
+								"activity": "act_get_username",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "act_get_password",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"method": "POST",
+							"headers": {
+								"Content-Type": "application/json"
+							},
+							"url": "https://ev-project-navy-mu.vercel.app/api/auth/login/",
+							"body": {
+								"value": "@concat(\n    '{\"username\":\"', \n    activity('act_get_username').output.value, \n    '\",\"password\":\"', \n    activity('act_get_password').output.value, \n    '\"}'\n    )",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_token",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_api_login",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_token",
+							"value": {
+								"value": "@activity('act_api_login').output.token",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_fetch_page1_meta",
+						"type": "WebActivity",
+						"dependsOn": [
+							{
+								"activity": "act_set_token",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "act_set_endpoint",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "act_set_page_size",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "act_set_watermark",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "act_set_sink_path",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "act_set_file_prefix",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "act_set_ingestion_date",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"method": "GET",
+							"headers": {
+								"authorization": {
+									"value": "@concat('Token ', variables('v_token'))",
+									"type": "Expression"
+								}
+							},
+							"url": {
+								"value": "@concat(\n  'https://ev-project-navy-mu.vercel.app',\n  variables('v_endpoint'),\n  '?page=1&page_size=',\n  variables('v_page_size'),\n  '&updated_after=',\n  encodeUriComponent(variables('v_last_watermark'))\n)",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_total_pages",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_fetch_page1_meta",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_total_pages",
+							"value": {
+								"value": "@int(activity('act_fetch_page1_meta').output.pagination.total_pages)",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_set_current_page_1",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_set_total_pages",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_current_page",
+							"value": {
+								"value": "@int(1)",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "until_current_page_less_than_total_pages",
+						"type": "Until",
+						"dependsOn": [
+							{
+								"activity": "act_set_current_page_1",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"expression": {
+								"value": "@greater(variables('v_current_page'), variables('v_total_pages'))",
+								"type": "Expression"
+							},
+							"activities": [
+								{
+									"name": "act_copy_page",
+									"type": "Copy",
+									"dependsOn": [
+										{
+											"activity": "act_set_loop_token",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"source": {
+											"type": "RestSource",
+											"httpRequestTimeout": "00:01:40",
+											"requestInterval": "00.00:00:00.010",
+											"requestMethod": "GET",
+											"additionalHeaders": {
+												"Authorization": {
+													"value": "@concat('Token ', variables('v_token'))",
+													"type": "Expression"
+												}
+											},
+											"paginationRules": {
+												"supportRFC5988": "true"
+											}
+										},
+										"sink": {
+											"type": "JsonSink",
+											"storeSettings": {
+												"type": "AzureBlobFSWriteSettings"
+											},
+											"formatSettings": {
+												"type": "JsonWriteSettings"
+											}
+										},
+										"enableStaging": false
+									},
+									"inputs": [
+										{
+											"referenceName": "ds_voltgrid_payments_src",
+											"type": "DatasetReference",
+											"parameters": {
+												"p_page": {
+													"value": "@string(variables('v_current_page'))",
+													"type": "Expression"
+												},
+												"p_page_size": {
+													"value": "@variables('v_page_size')",
+													"type": "Expression"
+												},
+												"p_endpoint": {
+													"value": "@variables('v_endpoint')",
+													"type": "Expression"
+												},
+												"p_updated_after": {
+													"value": "@variables('v_last_watermark')",
+													"type": "Expression"
+												},
+												"p_token": {
+													"value": "@variables('v_token')",
+													"type": "Expression"
+												}
+											}
+										}
+									],
+									"outputs": [
+										{
+											"referenceName": "ds_bronze_payments_sink",
+											"type": "DatasetReference",
+											"parameters": {
+												"p_folder": {
+													"value": "@concat(variables('v_sink_base_path'), '/ingestion_date=', variables('v_ingestion_date'), '/run_id=', pipeline().RunId)",
+													"type": "Expression"
+												},
+												"p_file": {
+													"value": "@concat(variables('v_file_prefix'), '_page_', string(variables('v_current_page')), '.json')",
+													"type": "Expression"
+												}
+											}
+										}
+									]
+								},
+								{
+									"name": "act_increment_page",
+									"type": "SetVariable",
+									"dependsOn": [
+										{
+											"activity": "act_copy_page",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "v_next_page",
+										"value": {
+											"value": "@add(variables('v_current_page'),1)",
+											"type": "Expression"
+										}
+									}
+								},
+								{
+									"name": "act_set_current_page",
+									"type": "SetVariable",
+									"dependsOn": [
+										{
+											"activity": "act_increment_page",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "v_current_page",
+										"value": {
+											"value": "@variables('v_next_page')",
+											"type": "Expression"
+										}
+									}
+								},
+								{
+									"name": "act_relogin",
+									"type": "WebActivity",
+									"dependsOn": [],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"method": "POST",
+										"headers": {
+											"Content-Type": "application/json"
+										},
+										"url": " https://ev-project-navy-mu.vercel.app/api/auth/login/",
+										"body": {
+											"value": "@concat(\n    '{\"username\": \"',\n    string(activity('act_get_username').output.value),\n    '\", \"password\": \"',\n    string(activity('act_get_password').output.value),\n    '\"}'\n)",
+											"type": "Expression"
+										}
+									}
+								},
+								{
+									"name": "act_set_loop_token",
+									"type": "SetVariable",
+									"dependsOn": [
+										{
+											"activity": "act_relogin",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "v_token",
+										"value": {
+											"value": "@activity('act_api_login').output.token",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"timeout": "0.12:00:00"
+						}
+					},
+					{
+						"name": "act_update_watermark",
+						"type": "DatabricksNotebook",
+						"dependsOn": [
+							{
+								"activity": "until_current_page_less_than_total_pages",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"notebookPath": "/Users/udaipurboy26@gmx.de/nb_update_watermark",
+							"baseParameters": {
+								"source_name": {
+									"value": "@pipeline().parameters.p_source_name",
+									"type": "Expression"
+								},
+								"new_watermark": {
+									"value": "@variables('v_run_ts')",
+									"type": "Expression"
+								}
+							}
+						},
+						"linkedServiceName": {
+							"referenceName": "ls_databricks",
+							"type": "LinkedServiceReference"
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"parameters": {
+					"p_source_name": {
+						"type": "string",
+						"defaultValue": "payments"
+					},
+					"p_load_type_override": {
+						"type": "string"
+					}
+				},
+				"variables": {
+					"v_token": {
+						"type": "String"
+					},
+					"v_endpoint": {
+						"type": "String"
+					},
+					"v_sink_base_path": {
+						"type": "String"
+					},
+					"v_file_prefix": {
+						"type": "String"
+					},
+					"v_page_size": {
+						"type": "String"
+					},
+					"v_last_watermark": {
+						"type": "String"
+					},
+					"v_ingestion_date": {
+						"type": "String"
+					},
+					"v_current_page": {
+						"type": "Integer"
+					},
+					"v_next_page": {
+						"type": "Integer"
+					},
+					"v_total_pages": {
+						"type": "Integer"
+					},
+					"v_run_ts": {
+						"type": "String"
+					}
+				},
+				"folder": {
+					"name": "bronze"
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-11-10T08:44:03Z"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/pl_gold_dynamic_foreach')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "act_list_gold_notebooks",
+						"type": "DatabricksNotebook",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"notebookPath": "/Users/udaipurboy26@gmx.de/gold/nb_list_gold_notebooks"
+						},
+						"linkedServiceName": {
+							"referenceName": "ls_databricks",
+							"type": "LinkedServiceReference"
+						}
+					},
+					{
+						"name": "act_foreach_gold",
+						"type": "ForEach",
+						"dependsOn": [
+							{
+								"activity": "act_list_gold_notebooks",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"items": {
+								"value": "@json(string(activity('act_list_gold_notebooks').output.runOutput))",
+								"type": "Expression"
+							},
+							"isSequential": true,
+							"activities": [
+								{
+									"name": "act_run_gold_runner",
+									"type": "ExecutePipeline",
+									"dependsOn": [],
+									"policy": {
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "pl_gold_runner",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {
+											"p_notebook": {
+												"value": "@item().notebook_name",
+												"type": "Expression"
+											},
+											"p_run_date": {
+												"value": "@pipeline().parameters.p_run_date",
+												"type": "Expression"
+											},
+											"p_run_type": {
+												"value": "@pipeline().parameters.p_run_type",
+												"type": "Expression"
+											}
+										}
+									}
+								}
+							]
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"parameters": {
+					"p_run_date": {
+						"type": "string"
+					},
+					"p_run_type": {
+						"type": "string",
+						"defaultValue": "incremental"
+					}
+				},
+				"folder": {
+					"name": "gold"
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-11-13T09:11:58Z"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/pl_silver_dynamic_foreach')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "act_list_silver_notebooks",
+						"type": "DatabricksNotebook",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"notebookPath": "/Users/udaipurboy26@gmx.de/silver/nb_list_silver_notebooks"
+						},
+						"linkedServiceName": {
+							"referenceName": "ls_databricks",
+							"type": "LinkedServiceReference"
+						}
+					},
+					{
+						"name": "act_foreach_silver",
+						"type": "ForEach",
+						"dependsOn": [
+							{
+								"activity": "act_list_silver_notebooks",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"items": {
+								"value": "@json(string(activity('act_list_silver_notebooks').output.runOutput))",
+								"type": "Expression"
+							},
+							"isSequential": true,
+							"activities": [
+								{
+									"name": "act_run_silver_runner",
+									"description": "Run silver notebook dynamically based on the table name",
+									"type": "ExecutePipeline",
+									"dependsOn": [],
+									"policy": {
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "pl_silver_runner",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {
+											"p_notebook": {
+												"value": "@item().notebook_name",
+												"type": "Expression"
+											},
+											"p_run_date": {
+												"value": "@pipeline().parameters.p_run_date",
+												"type": "Expression"
+											},
+											"p_run_type": {
+												"value": "@pipeline().parameters.p_run_type",
+												"type": "Expression"
+											}
+										}
+									}
+								}
+							]
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"parameters": {
+					"p_run_date": {
+						"type": "string"
+					},
+					"p_run_type": {
+						"type": "string",
+						"defaultValue": "incremental"
+					}
+				},
+				"folder": {
+					"name": "silver"
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-11-12T12:36:32Z"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/pl_bronze_master')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "act_run_weather",
+						"type": "ExecutePipeline",
+						"dependsOn": [],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "pl_bronze_incremental_load",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {
+								"p_source_name": "weather",
+								"p_load_type_override": {
+									"value": "@pipeline().parameters.p_load_type_override",
+									"type": "Expression"
+								}
+							}
+						}
+					},
+					{
+						"name": "act_run_fleet",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "act_run_weather",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "pl_bronze_incremental_load",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {
+								"p_source_name": "fleet",
+								"p_load_type_override": {
+									"value": "@pipeline().parameters.p_load_type_override",
+									"type": "Expression"
+								}
+							}
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"parameters": {
+					"p_source_name": {
+						"type": "string",
+						"defaultValue": "payments"
+					},
+					"p_load_type_override": {
+						"type": "string"
+					}
+				},
+				"folder": {
+					"name": "bronze"
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-11-09T15:33:53Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/pipelines/pl_bronze_incremental_load')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/pl_bronze_master_foreach')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "act_list_sources",
+						"type": "DatabricksNotebook",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"notebookPath": "/Users/udaipurboy26@gmx.de/nb_list_active_sources"
+						},
+						"linkedServiceName": {
+							"referenceName": "ls_databricks",
+							"type": "LinkedServiceReference"
+						}
+					},
+					{
+						"name": "act_foreach_source",
+						"type": "ForEach",
+						"dependsOn": [
+							{
+								"activity": "act_set_sources",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"items": {
+								"value": "@json(string(variables('v_sources')))",
+								"type": "Expression"
+							},
+							"isSequential": true,
+							"activities": [
+								{
+									"name": "act_run_source",
+									"type": "ExecutePipeline",
+									"dependsOn": [],
+									"policy": {
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "pl_bronze_incremental_load_v3",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {
+											"p_source_name": {
+												"value": "@item()",
+												"type": "Expression"
+											},
+											"p_load_type_override": {
+												"value": "@pipeline().parameters.p_load_type_override",
+												"type": "Expression"
+											}
+										}
+									}
+								}
+							]
+						}
+					},
+					{
+						"name": "act_set_sources",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_list_sources",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_sources",
+							"value": {
+								"value": "@activity('act_list_sources').output.runOutput",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "act_silver_dynamic",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "act_foreach_source",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "pl_silver_dynamic_foreach",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {
+								"p_run_date": {
+									"value": "@pipeline().parameters.p_run_date",
+									"type": "Expression"
+								},
+								"p_run_type": {
+									"value": "@pipeline().parameters.p_run_type",
+									"type": "Expression"
+								}
+							}
+						}
+					}
+				],
+				"concurrency": 1,
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"parameters": {
+					"p_load_type_override": {
+						"type": "string"
+					},
+					"p_run_date": {
+						"type": "string"
+					},
+					"p_run_type": {
+						"type": "string",
+						"defaultValue": "incremental"
+					}
+				},
+				"variables": {
+					"v_sources": {
+						"type": "Array",
+						"defaultValue": []
+					}
+				},
+				"folder": {
+					"name": "bronze"
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-11-12T12:39:02Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/pipelines/pl_silver_dynamic_foreach')]",
+				"[concat(variables('factoryId'), '/pipelines/pl_bronze_incremental_load_v3')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/pl_bronze_master_parallel')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "act_get_sources",
+						"type": "DatabricksNotebook",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"notebookPath": "/Users/udaipurboy26@gmx.de/nb_list_active_sources"
+						},
+						"linkedServiceName": {
+							"referenceName": "ls_databricks",
+							"type": "LinkedServiceReference"
+						}
+					},
+					{
+						"name": "act_foreach_source_parallel",
+						"type": "ForEach",
+						"dependsOn": [
+							{
+								"activity": "act_set_sources",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"items": {
+								"value": "@json(string(variables('v_sources')))",
+								"type": "Expression"
+							},
+							"isSequential": false,
+							"batchCount": 5,
+							"activities": [
+								{
+									"name": "act_each_source",
+									"type": "ExecutePipeline",
+									"dependsOn": [],
+									"policy": {
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "pl_bronze_incremental_load",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {
+											"p_source_name": {
+												"value": "@item()",
+												"type": "Expression"
+											},
+											"p_load_type_override": {
+												"value": "@pipeline().parameters.p_load_type_override",
+												"type": "Expression"
+											}
+										}
+									}
+								}
+							]
+						}
+					},
+					{
+						"name": "act_set_sources",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "act_get_sources",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_sources",
+							"value": {
+								"value": "@activity('act_get_sources').output.runOutput",
+								"type": "Expression"
+							}
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"parameters": {
+					"p_load_type_override": {
+						"type": "string"
+					}
+				},
+				"variables": {
+					"v_sources": {
+						"type": "String"
+					}
+				},
+				"folder": {
+					"name": "bronze"
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-11-09T15:48:32Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/pipelines/pl_bronze_incremental_load')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/pl_master_blob_migration')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "act_run_bronze_blob",
+						"type": "ExecutePipeline",
+						"dependsOn": [],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "pl_bronze_blob_ingestion",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					},
+					{
+						"name": "act_run_silver_blob",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "act_run_bronze_blob",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "pl_blob_silver_migration",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					},
+					{
+						"name": "act_run_gold_blob",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "act_run_silver_blob",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "pl_blob_gold_migration",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"parameters": {
+					"p_load_type": {
+						"type": "string",
+						"defaultValue": "incremental"
+					}
+				},
+				"folder": {
+					"name": "master"
+				},
+				"annotations": []
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/pl_master_e2e')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"description": "End-to-end master pipeline (Day 11).\n\nFlow:\n  1. act_list_sources      — nb_list_active_sources reads Bronze control table\n  2. act_foreach_source    — ForEach calls pl_bronze_incremental_load_v3 per source\n  3. act_silver_dynamic    — ExecutePipeline -> pl_silver_dynamic_foreach\n  4. act_gold_dynamic      — ExecutePipeline -> pl_gold_dynamic_foreach\n\nAdding a Bronze source  : INSERT into ev_catalog.ctl.pipeline_control\nAdding a Silver entity  : INSERT into ev_catalog.silver.silver_control\nAdding a Gold notebook  : INSERT into ev_catalog.gold.gold_control\nNo ADF changes needed for any of the above.",
+				"activities": [
+					{
+						"name": "act_list_sources",
+						"description": "Run nb_list_active_sources — exits with json.dumps([source_names]) string",
+						"type": "DatabricksNotebook",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.01:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"notebookPath": "/Users/udaipurboy26@gmx.de/nb_list_active_sources"
+						},
+						"linkedServiceName": {
+							"referenceName": "ls_databricks",
+							"type": "LinkedServiceReference"
+						}
+					},
+					{
+						"name": "act_foreach_source",
+						"description": "Iterate sequentially over each active Bronze source.",
+						"type": "ForEach",
+						"dependsOn": [
+							{
+								"activity": "act_list_sources",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"items": {
+								"value": "@json(string(activity('act_list_sources').output.runOutput))",
+								"type": "Expression"
+							},
+							"isSequential": true,
+							"activities": [
+								{
+									"name": "act_run_source",
+									"type": "ExecutePipeline",
+									"dependsOn": [],
+									"policy": {
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "pl_bronze_incremental_load_v3",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {
+											"p_source_name": {
+												"value": "@item()",
+												"type": "Expression"
+											},
+											"p_load_type_override": {
+												"value": "@pipeline().parameters.p_load_type_override",
+												"type": "Expression"
+											}
+										}
+									}
+								}
+							]
+						}
+					},
+					{
+						"name": "act_silver_dynamic",
+						"description": "After Bronze completes, run all active Silver notebooks via control table.",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "act_foreach_source",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "pl_silver_dynamic_foreach",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {
+								"p_run_date": {
+									"value": "@pipeline().parameters.p_run_date",
+									"type": "Expression"
+								},
+								"p_run_type": {
+									"value": "@pipeline().parameters.p_run_type",
+									"type": "Expression"
+								}
+							}
+						}
+					},
+					{
+						"name": "act_gold_dynamic",
+						"description": "After Silver completes, run all active Gold notebooks via control table.\nDims → Facts → Marts order is guaranteed by run_order in gold_control.",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "act_silver_dynamic",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "pl_gold_dynamic_foreach",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {
+								"p_run_date": {
+									"value": "@pipeline().parameters.p_run_date",
+									"type": "Expression"
+								},
+								"p_run_type": {
+									"value": "@pipeline().parameters.p_run_type",
+									"type": "Expression"
+								}
+							}
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"parameters": {
+					"p_load_type_override": {
+						"type": "string"
+					},
+					"p_run_date": {
+						"type": "string"
+					},
+					"p_run_type": {
+						"type": "string",
+						"defaultValue": "incremental"
+					}
+				},
+				"folder": {
+					"name": "master"
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-11-13T09:16:23Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/pipelines/pl_silver_dynamic_foreach')]",
+				"[concat(variables('factoryId'), '/pipelines/pl_gold_dynamic_foreach')]",
+				"[concat(variables('factoryId'), '/pipelines/pl_bronze_incremental_load_v3')]"
+			]
+		}
+	]
+}

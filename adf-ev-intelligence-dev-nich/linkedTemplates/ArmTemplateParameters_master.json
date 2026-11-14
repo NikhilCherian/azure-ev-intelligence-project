@@ -1,0 +1,30 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"value": "adf-ev-intelligence-dev-nich"
+		},
+		"ls_adls_bronze_properties_typeProperties_url": {
+			"value": "https://evdatalakedevnich.dfs.core.windows.net/"
+		},
+		"ls_blob_source_sasUri": {
+			"value": ""
+		},
+		"ls_databricks_properties_typeProperties_existingClusterId": {
+			"value": "1108-210108-ggpz4jwi"
+		},
+		"ls_keyvault_properties_typeProperties_baseUrl": {
+			"value": "https://kv-ev-intelligence-dev94.vault.azure.net/"
+		},
+		"ls_voltgrid_api_properties_typeProperties_url": {
+			"value": "https://ev-project-navy-mu.vercel.app"
+		},
+		"containerUri": {
+			"value": ""
+		},
+		"containerSasToken": {
+			"value": ""
+		}
+	}
+}
