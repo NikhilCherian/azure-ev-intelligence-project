@@ -1,0 +1,59 @@
+{
+	"name": "pl_gold_runner",
+	"properties": {
+		"activities": [
+			{
+				"name": "act_run_gold_notebook",
+				"type": "DatabricksNotebook",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 1,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"notebookPath": {
+						"value": "@concat('/Users/udaipurboy26@gmx.de/gold/', pipeline().parameters.p_notebook)",
+						"type": "Expression"
+					},
+					"baseParameters": {
+						"p_run_date": {
+							"value": "@if(empty(pipeline().parameters.p_run_date), formatDateTime(pipeline().TriggerTime, 'yyyy-MM-dd'), pipeline().parameters.p_run_date)",
+							"type": "Expression"
+						},
+						"p_run_type": {
+							"value": "@pipeline().parameters.p_run_type",
+							"type": "Expression"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "ls_databricks",
+					"type": "LinkedServiceReference"
+				}
+			}
+		],
+		"parameters": {
+			"p_notebook": {
+				"type": "string",
+				"defaultValue": "nb_gold_dim_station"
+			},
+			"p_run_date": {
+				"type": "string"
+			},
+			"p_run_type": {
+				"type": "string",
+				"defaultValue": "incremental"
+			}
+		},
+		"folder": {
+			"name": "gold"
+		},
+		"annotations": [],
+		"lastPublishTime": "2026-11-13T13:48:19Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

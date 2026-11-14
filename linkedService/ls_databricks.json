@@ -1,0 +1,14 @@
+{
+	"name": "ls_databricks",
+	"type": "Microsoft.DataFactory/factories/linkedservices",
+	"properties": {
+		"annotations": [],
+		"type": "AzureDatabricks",
+		"typeProperties": {
+			"domain": "https://adb-7405615581452301.1.azuredatabricks.net",
+			"authentication": "MSI",
+			"workspaceResourceId": "/subscriptions/9b74bb42-5395-4ee6-b6e1-a20a76fe1178/resourceGroups/rg-ev-intelligence-dev/providers/Microsoft.Databricks/workspaces/dbw-ev-intelligence-dev2",
+			"existingClusterId": "1108-210108-ggpz4jwi"
+		}
+	}
+}

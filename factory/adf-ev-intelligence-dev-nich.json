@@ -1,0 +1,15 @@
+{
+	"name": "adf-ev-intelligence-dev-nich",
+	"properties": {
+		"trustModeClaimForMi": {
+			"value": "Disabled",
+			"editable": true
+		}
+	},
+	"location": "swedencentral",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "8c7675cd-4448-4e67-bcd9-45f6ba0fd64f",
+		"tenantId": "e50e405f-a95d-4732-aacb-291558be8cf4"
+	}
+}

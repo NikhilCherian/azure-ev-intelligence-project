@@ -1,0 +1,539 @@
+{
+	"name": "pl_bronze_incremental_load_practice",
+	"properties": {
+		"activities": [
+			{
+				"name": "act_get_username",
+				"type": "WebActivity",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"method": "GET",
+					"headers": {
+						"Content-Type": "application/json"
+					},
+					"url": "https://kv-ev-intelligence-dev94.vault.azure.net/secrets/voltgrid-username?api-version=7.0",
+					"authentication": {
+						"type": "MSI",
+						"resource": "https://vault.azure.net"
+					}
+				}
+			},
+			{
+				"name": "act_get_password",
+				"type": "WebActivity",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"method": "GET",
+					"headers": {
+						"Content-Type": "application/json"
+					},
+					"url": "https://kv-ev-intelligence-dev94.vault.azure.net/secrets/voltgrid-password?api-version=7.0",
+					"authentication": {
+						"type": "MSI",
+						"resource": "https://vault.azure.net"
+					}
+				}
+			},
+			{
+				"name": "act_get_token",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "act_get_username",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "act_get_password",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"method": "POST",
+					"headers": {
+						"Content-Type": "application/json"
+					},
+					"url": "https://ev-project-navy-mu.vercel.app/api/auth/login/",
+					"body": {
+						"value": "@concat(\n    '{\"username\": \"',\n    string(activity('act_get_username').output.value),\n    '\", \"password\": \"',\n    string(activity('act_get_password').output.value),\n    '\"}'\n)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "act_set_token",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "act_get_token",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_token",
+					"value": {
+						"value": "@activity('act_get_token').output.token",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "act_fetch_page1_meta",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "act_set_token",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "act_set_last_watermark",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "act_set_page_size",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "act_set_endpoint",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"method": "GET",
+					"headers": {
+						"Authorization": {
+							"value": "@concat('Token ', variables('v_token'))",
+							"type": "Expression"
+						}
+					},
+					"url": {
+						"value": "@concat(\n    'https://ev-project-navy-mu.vercel.app',\n    variables('v_endpoint'),\n    '?page=1&page_size=',\n    variables('v_page_size'),\n    '&updated_after=',\n    encodeUriComponent(variables('v_last_watermark'))\n)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "act_db_read_control_table",
+				"type": "DatabricksNotebook",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"notebookPath": "/Users/udaipurboy26@gmx.de/nb_read_control_table",
+					"baseParameters": {
+						"source_name": {
+							"value": "@pipeline().parameters.p_source_name",
+							"type": "Expression"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "ls_databricks",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "act_set_last_watermark",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "act_db_read_control_table",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_last_watermark",
+					"value": {
+						"value": "@activity('act_db_read_control_table').output.runOutput.last_watermark",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "act_set_page_size",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "act_db_read_control_table",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_page_size",
+					"value": {
+						"value": "@activity('act_db_read_control_table').output.runOutput.page_size",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "act_set_total_pages",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "act_fetch_page1_meta",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_total_pages",
+					"value": {
+						"value": "@activity('act_fetch_page1_meta').output.pagination.total_pages",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "act_set_endpoint",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "act_db_read_control_table",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_endpoint",
+					"value": {
+						"value": "@activity('act_db_read_control_table').output.runOutput.endpoint",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "copy_page1",
+				"type": "Copy",
+				"dependsOn": [
+					{
+						"activity": "act_set_total_pages",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "RestSource",
+						"httpRequestTimeout": "00:01:40",
+						"requestInterval": "00.00:00:00.010",
+						"requestMethod": "GET",
+						"additionalHeaders": {
+							"Authorization": {
+								"value": "@concat('Token ', variables('v_token'))",
+								"type": "Expression"
+							}
+						},
+						"paginationRules": {
+							"supportRFC5988": "true"
+						}
+					},
+					"sink": {
+						"type": "JsonSink",
+						"storeSettings": {
+							"type": "AzureBlobFSWriteSettings"
+						},
+						"formatSettings": {
+							"type": "JsonWriteSettings"
+						}
+					},
+					"enableStaging": false
+				},
+				"inputs": [
+					{
+						"referenceName": "ds_voltgrid_payments_src",
+						"type": "DatasetReference",
+						"parameters": {
+							"p_page": "1",
+							"p_page_size": {
+								"value": "@variables('v_page_size')",
+								"type": "Expression"
+							},
+							"p_endpoint": {
+								"value": "@variables('v_endpoint')",
+								"type": "Expression"
+							},
+							"p_updated_after": {
+								"value": "@variables('v_last_watermark')",
+								"type": "Expression"
+							},
+							"p_token": {
+								"value": "@variables('v_token')",
+								"type": "Expression"
+							}
+						}
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "ds_bronze_payments_sink",
+						"type": "DatasetReference",
+						"parameters": {
+							"p_folder": {
+								"value": "@concat(\n    'apitest/payments',\n    '/ingestion_time=',\n    variables('v_ingestion_date')\n)",
+								"type": "Expression"
+							},
+							"p_file": "payments_page_1.json"
+						}
+					}
+				]
+			},
+			{
+				"name": "act_set_sink_base_path",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "act_db_read_control_table",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_sink_base_path",
+					"value": {
+						"value": "@activity('act_db_read_control_table').output.runOutput.sink_base_path",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "act_set_file_prefix",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "act_db_read_control_table",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_file_prefix",
+					"value": {
+						"value": "@activity('act_db_read_control_table').output.runOutput.file_prefix",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "act_set_load_type",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "act_db_read_control_table",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_load_type",
+					"value": {
+						"value": "@activity('act_db_read_control_table').output.runOutput.load_type",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "act_set_ingestion_date",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "act_db_read_control_table",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_ingestion_date",
+					"value": {
+						"value": "@formatDateTime(utcNow(), 'yyyy-MM-dd')",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "act_set_run_ts",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "act_db_read_control_table",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_run_ts",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			}
+		],
+		"parameters": {
+			"p_folder_name": {
+				"type": "string",
+				"defaultValue": "api/db"
+			},
+			"p_source_name": {
+				"type": "string",
+				"defaultValue": "payments"
+			}
+		},
+		"variables": {
+			"v_token": {
+				"type": "String"
+			},
+			"v_last_watermark": {
+				"type": "String"
+			},
+			"v_page_size": {
+				"type": "Integer"
+			},
+			"v_total_pages": {
+				"type": "Integer"
+			},
+			"v_endpoint": {
+				"type": "String"
+			},
+			"v_sink_base_path": {
+				"type": "String"
+			},
+			"v_file_prefix": {
+				"type": "String"
+			},
+			"v_load_type": {
+				"type": "String"
+			},
+			"v_ingestion_date": {
+				"type": "String"
+			},
+			"v_run_ts": {
+				"type": "String"
+			}
+		},
+		"annotations": [],
+		"lastPublishTime": "2026-11-09T14:11:33Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}
