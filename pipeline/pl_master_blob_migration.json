@@ -1,0 +1,79 @@
+{
+	"name": "pl_master_blob_migration",
+	"properties": {
+		"activities": [
+			{
+				"name": "act_run_bronze_blob",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_bronze_blob_ingestion",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true
+				}
+			},
+			{
+				"name": "act_run_silver_blob",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "act_run_bronze_blob",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_blob_silver_migration",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true
+				}
+			},
+			{
+				"name": "act_run_gold_blob",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "act_run_silver_blob",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "pl_blob_gold_migration",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true
+				}
+			}
+		],
+		"parameters": {
+			"p_load_type": {
+				"type": "string",
+				"defaultValue": "incremental"
+			}
+		},
+		"folder": {
+			"name": "master"
+		},
+		"annotations": []
+	}
+}

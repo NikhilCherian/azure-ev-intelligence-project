@@ -304,6 +304,9 @@
 				"defaultValue": "incremental"
 			}
 		},
+		"folder": {
+			"name": "bronze"
+		},
 		"annotations": [],
 		"lastPublishTime": "2026-11-11T10:40:50Z"
 	},
