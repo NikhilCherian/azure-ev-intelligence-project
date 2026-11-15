@@ -84,7 +84,7 @@
 								"referenceName": "ds_gold_blob_sink",
 								"type": "DatasetReference",
 								"parameters": {
-									"p_folder": "gold-blob/config/load_type=full"
+									"p_folder": "blob/config/load_type=full"
 								}
 							}
 						]
@@ -150,7 +150,7 @@
 											"type": "DatasetReference",
 											"parameters": {
 												"p_folder": {
-													"value": "@concat(\n    'gold-blob/invoices/ingestion_date=',\n    formatDateTime(\n        addDays(utcNow(),-1 ), 'yyyy-MM-dd')\n)",
+													"value": "@concat(\n    'blob/invoices/ingestion_date=',\n    formatDateTime(\n        addDays(utcNow(),-1 ), 'yyyy-MM-dd')\n)",
 													"type": "Expression"
 												}
 											}
@@ -205,7 +205,7 @@
 											"referenceName": "ds_gold_blob_sink",
 											"type": "DatasetReference",
 											"parameters": {
-												"p_folder": "gold-blob/invoices/load_type=full"
+												"p_folder": "blob/invoices/load_type=full"
 											}
 										}
 									]
@@ -273,7 +273,7 @@
 											"type": "DatasetReference",
 											"parameters": {
 												"p_folder": {
-													"value": "@concat(\n    'gold-blob/invoices/ingestion_date=', \n    formatDateTime(addDays(utcNow(), -1), 'yyyy-MM-dd')\n)",
+													"value": "@concat(\n    'blob/invoices/ingestion_date=', \n    formatDateTime(addDays(utcNow(), -1), 'yyyy-MM-dd')\n)",
 													"type": "Expression"
 												}
 											}
@@ -328,7 +328,7 @@
 											"referenceName": "ds_gold_blob_sink",
 											"type": "DatasetReference",
 											"parameters": {
-												"p_folder": "gold-blob/reports/load_type=full"
+												"p_folder": "blob/reports/load_type=full"
 											}
 										}
 									]
@@ -410,7 +410,7 @@
 								"referenceName": "ds_silver_blob_sink",
 								"type": "DatasetReference",
 								"parameters": {
-									"p_folder": "silver-blob/config/load_type=full"
+									"p_folder": "blob/config/load_type=full"
 								}
 							}
 						]
@@ -531,7 +531,7 @@
 											"referenceName": "ds_silver_blob_sink",
 											"type": "DatasetReference",
 											"parameters": {
-												"p_folder": "silver-blob/invoices/load_type=full"
+												"p_folder": "blob/invoices/load_type=full"
 											}
 										}
 									]
@@ -599,7 +599,7 @@
 											"type": "DatasetReference",
 											"parameters": {
 												"p_folder": {
-													"value": "@concat('silver-blob/reports/ingestion_date=', \nformatDateTime(addDays(startOfMonth(utcNow()), -1), 'yyyy-MM')\n)",
+													"value": "@concat('blob/reports/ingestion_date=', \nformatDateTime(addDays(startOfMonth(utcNow()), -1), 'yyyy-MM')\n)",
 													"type": "Expression"
 												}
 											}
@@ -654,7 +654,7 @@
 											"referenceName": "ds_silver_blob_sink",
 											"type": "DatasetReference",
 											"parameters": {
-												"p_folder": "silver-blob/reports/load_type=full"
+												"p_folder": "blob/reports/load_type=full"
 											}
 										}
 									]
